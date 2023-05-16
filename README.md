@@ -2,7 +2,7 @@
 A reddit search engine to find posts 
 
 Currently Reddit has limited filter functionality with only the ability to sort submissions by Hot, New, and Top. 
-The goal of this project was to add additional filters, namely the Top filter. 
+The goal of this project was to add additional filters options, namely to the Top filter. 
 
 Top Filter improvements:
 Reddit's top filter only has the ability to see the top post of Today, Week, Month, Year, and All Time. 

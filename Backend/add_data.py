@@ -1,8 +1,7 @@
 import os
-import json
 from praw_reddit import *
-from connect_local_db import *
 from db_methods import *
+from console_helper_methods import *
 
 # Specify the directory path
 directory = r'C:\Users\ryu28\OneDrive\Desktop\Reddit Json Dump\2007'
@@ -13,8 +12,6 @@ def process_directory(directory):
         item_path = os.path.join(directory, filename)
 
         if os.path.isfile(item_path):
-            if filename != 'RS_2007-10':
-                continue
             # Perform operations on the file
             process_file(item_path)
 
@@ -23,77 +20,108 @@ def process_directory(directory):
             print('Processing directory:', item_path)
             process_directory(item_path)
 
-def process_file(item_path):
-    # check if file has been previously processed
-    last_line = 0
-    with open('error_report.json', 'r') as file:
-        last_update = json.load(file)
-    # if item_path != last_update[-1]['file'] or last_update[-1]['completed'] is True:
-    #     return
-    # else:
-    # last_line = last_update[-1]['last_line_added']
 
-    # process the remaining data
+def process_file(item_path):
     print('Processing file:', item_path)
     file = open(item_path)
     posts = []
     for line_num, line in enumerate(file):
         line = json.loads(line)
-        if line_num < last_line:
-            continue
-        else:
-            posts.append(f"t3_{line['id']}")
+        # if line['created_utc'] < 1196467182:
+        #     continue
+        # else:
+        posts.append(f"t3_{line['id']}")
 
-    praw_generator = praw_fetch_batch_post(posts)
-    last_post_i = 0
-    for post_i, post in enumerate(praw_generator):
+    total_count, day_count, retry_count = 0, 0, 0
+    cur_date = ''
+    subreddit_posts_day = {}
+    while total_count < len(posts):
+        praw_generator = praw_fetch_batch_post(posts[total_count:])
         try:
-            if post.created_utc < 1193064856:
-                continue
+            for post_i, post in enumerate(praw_generator):
+                if not cur_date:
+                    cur_date = get_date(post.created_utc)
+                    update_subreddit_posts_day(post, subreddit_posts_day)
+                elif cur_date != get_date(post.created_utc):
+                    print(f'Successfully added {day_count} new submissions for subsmissions on {cur_date}, Total added: {total_count}')
+                    update_top_for_all_subreddits(subreddit_posts_day)
+                    save_to_db(cur_date, subreddit_posts_day)
 
-            last_post_i = post_i
-            # print(post.subreddit, post.id, post.score, post.permalink, post.title, post.thumbnail, post.created_utc)
-            # print(type(str(post.subreddit)), type(post.id), type(post.created_utc))
-            insert_row_v5(format_for_db(post))
+                    cur_date = get_date(post.created_utc)
+                    day_count = 0
+                    subreddit_posts_day.clear()
+
+                else:
+                    update_subreddit_posts_day(post, subreddit_posts_day)
+
+
+                # insert_row_v5(format_for_db(post))
+                total_count += 1
+                day_count += 1
 
         except Exception as e:
-            print(str(e))
-            log_event(item_path, False, post_i, str(e))
-            # print("We ran into an error!: e")
-            return
+            retry_count += 1
+            total_count += 5
+            print(str(e), 'retry count: ', retry_count, 'total_count :', total_count)
+            log_event(item_path, False, posts[total_count:total_count + 5], str(e))
 
         # if post_i == 99:
         #     break
 
-
-    log_event(item_path, True, last_post_i, 'None')
+    log_event(item_path, True, total_count, 'None')
     print('Processing complete')
 
 
+def update_subreddit_posts_day(post, subreddits):
+    subreddit = post.subreddit.display_name if post.subreddit else 'deleted'
+    if subreddit in subreddits:
+        subreddits[subreddit].append(post)
+    else:
+        subreddits[subreddit] = [post]
+
+def update_top_for_all_subreddits(subreddits):
+    #sort the list for all the subreddits, and then take only the top 50
+    for subreddit in subreddits:
+        subreddits[subreddit].sort(key=lambda post: post.score, reverse=True)
+        subreddits[subreddit] = subreddits[subreddit][:50]
+
+
+    return
+
+
+def save_to_db(cur_day, subreddit_posts_day):
+    for sub in subreddit_posts_day:
+        json_blob = []
+        for post in subreddit_posts_day[sub]:
+            json_blob.append({
+                'permalink': post.permalink,
+                'title': post.title,
+                'score': post.score,
+                'id': post.id,
+                'author': post.author.name if post.author else 'deleted'})
+        insert_row_v5((cur_day, sub, json.dumps(json_blob)))
 
 
 def format_for_db(post):
     json_blob = {
         'permalink': post.permalink,
         'title': post.title,
-    }
+        'score': post.score,
+        'id': post.id,
+        'author': post.author.name if post.author else 'deleted'}
 
     post_type = 0
     comment_count = 0
-    # print((post.created_utc, post_type, post.score, comment_count, str(post.subreddit), post.id, post.author, json.dumps(json_blob)))
-    return ((post.created_utc, post_type, post.score, comment_count, post.subreddit.display_name if post.subreddit else 'deleted', post.id, post.author.name if post.author else 'deleted',
-            json.dumps(json_blob)))
+    return post.created_utc, post.subreddit.display_name if post.subreddit else 'deleted', json.dumps(json_blob)
 
 
-
-
-def log_event(file_path, completion_status, cur_line, error=None):
+def log_event(file_path, completion_status, skipped_posts, error=None):
     cur_file = os.path.basename(file_path)
     log_path = r"C:\Users\ryu28\PycharmProjects\BetterReddit\error_report.json"
 
     log_event = {
         'completed': completion_status,
-        'last_line_added': cur_line,
+        'last_line_added': skipped_posts,
         'error': error
     }
 

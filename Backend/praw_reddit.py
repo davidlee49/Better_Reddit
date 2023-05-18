@@ -6,19 +6,31 @@ from db_methods import *
 reddit = praw_reddit_creds()
 
 url = '''
-https://www.reddit.com/r/reddit.com/comments/5yuk8/unlocks_secrets_and_power_of_search_marketing/
+https://www.reddit.com/r/reddit.com/comments/60bpc/cyclops_comic/
 '''
 id = url.split('/')
 
 def praw_fetch_batch_post(posts_list):
-    submission2 = reddit.info(fullnames=posts_list)
+    problem_posts = []
+    submissions = reddit.info(fullnames=posts_list[len(problem_posts):])
+    # while len(problem_posts) != posts_list:
+    #     try:
+    #
+    #     except Exception as e:
+    #         print(str(e))
+    #         problem_posts.append(posts_list[len(problem_posts)])
+
 
     # for count, sub in enumerate(submission2):
-    #     print(count, sub.title, sub.score, f'https://www.reddit.com{sub.permalink}')
+        # print(count, sub.title, sub.score, f'https://www.reddit.com{sub.permalink}')
 
-    return submission2
+    # for i in submissions:
+    #     print('I FOUND IT')
+    #     print(i.id, i.created_utc)
 
-praw_fetch_batch_post(['t3_'])
+    return submissions
+
+# praw_fetch_batch_post(['t3_60bpc'])
 
 def praw_fetch_submission(postid):
     submission = reddit.submission(postid)
@@ -84,7 +96,7 @@ def fetch_top_posts(li):
     return fetched_vals
 
 # fetch_top_posts([])
-praw_fetch_submission(f'{id[6]}')
+# praw_fetch_submission(f'{id[6]}')
 
 
 

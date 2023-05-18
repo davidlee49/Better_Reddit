@@ -1,7 +1,7 @@
 from flask import Flask, request
 from flask_cors import CORS
 from pushshift_api import *
-from connect_local_db import get_rows_by_time
+from db_methods import show_post_from_date
 from datetime import datetime
 
 app = Flask(__name__)
@@ -22,14 +22,13 @@ def index():
     date_end = int(date_end.timestamp())
     print(date_end)
 
-    if date_end > 1164151349:
+    if date_end > 1236093580:
         posts = pushshift_api(date_end, date_start, data['subreddit'], data['title'])
         # print("returned posts from praw: ", posts)
         return posts
     else:
-        posts = get_rows_by_time(date_end, date_start, data['subreddit'])
+        posts = show_post_from_date(data['created_utc_start'], data['created_utc_end'], data['subreddit'])
         # print("returned posts from local sql: ", posts)
-
         return posts
 
 

@@ -8,3 +8,4 @@ Top Filter improvements:
 Reddit's top filter only has the ability to view the top post of Today, Week, Month, Year, and All Time. 
 I added the ability to filter posts by any given time range. An example would be a fileter to find the best posts of r/nytimes between August and September of 2006. Here is an example:
 ![Alt Text](https://github.com/davidlee49/Better_Reddit/blob/main/V1%20Demo.gif)
+![Alt Text](https://github.com/davidlee49/Better_Reddit/blob/main/V2%20Demo.gif)

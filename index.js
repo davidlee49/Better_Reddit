@@ -1,154 +1,223 @@
 import React from 'react'
-import Link from 'next/link'
 import { useState } from 'react'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faArrowLeft, faArrowRight } from '@fortawesome/free-solid-svg-icons';
 
-
-// export async function getStaticProps() {
-//   const response = await fetch(`http://127.0.0.1:5000/members`)
-//   const data = await response.json()
-
-//   console.log(data)
-//   return {
-//       props: {
-//           posts: data
-//       }
-//   }
-// }
 
 
 function Home() {
-  const [posts, setPosts] = useState([])
-  const [selectedDateStart, setSelectedDateStart] = useState('2005-08-08'); 
-  const [selectedDateEnd, setSelectedDateEnd] = useState('2005-09-09'); 
+  const [subreddit, setSubreddit] = useState('reddit.com')
+  const [activeTab, setActiveTab] = useState({month: false, week: false, day: true});
+  const [postsDay, setPostsDay] = useState(0)
+  const [postsWeek, setPostsWeek] = useState(0)
+  const [postsDayTotal, setPostsDayTotal] = useState([[]])
+  const [postsWeekTotal, setPostsWeekTotal] = useState([[]])
+  const [postsMonth, setPostsMonth] = useState([]) 
+  
+  const handleDayChangeBtn = (event) => {
+    const cur_day = postsDay + parseInt(event.target.value)
+    console.log('curday:', cur_day)
+    if (cur_day > postsDayTotal.length - 1) {
+      handleNextMonthChange(event)
+    } else if (cur_day < 0) {
+      const month = parseInt(document.getElementById('monthSelect').value)
+      const year = parseInt(document.getElementById('yearSelect').value)
+      const date = new Date(year, month +1 , 0).getDate()
+      handleNextMonthChange(event)
+      //date - 1 is correct here but it is either too fast or maybe the state hasnt changed yet...idk
+      //have it set to -2 for now so it wont break unless you go back into febuary
+      console.log(date-1)
+      setPostsDay(date - 2)
+    } else {
+      setPostsDay(cur_day)
+    }
+  }
 
-  const handleStartDateChange = (event) => {
-    setSelectedDateStart(event.target.value);
-  };
+  const handleNextWeekBtn = (event) => {
+    const cur_week = postsWeek + parseInt(event.target.value)
+    if (cur_week > 3) {
+      handleNextMonthChange(event)
+    } else if (cur_week < 0) {
+      handleNextMonthChange(event)
+      setPostsWeek(3)
+    }else {
+      setPostsWeek(postsWeek + parseInt(event.target.value))
+    }
+  }
 
-  const handleEndDateChange = (event) => {
-    setSelectedDateEnd(event.target.value);
-  };
+  const handleNextMonthChange =  (event) => {
+    console.log(event.target.value)
+    const nextMonth = parseInt(document.getElementById('monthSelect').value) + parseInt(event.target.value)
+    if(nextMonth == 13){
+      document.getElementById('monthSelect').value = '01'
+      handleNextYearChange(event)
+    } else if (nextMonth == 0){
+      document.getElementById('monthSelect').value = '12'
+      handleNextYearChange(event)
+    } else {
+      document.getElementById('monthSelect').value = nextMonth.toString().padStart(2, '0')
+    }
+    console.log('Month =',document.getElementById('monthSelect').value)
+    fetchPosts()
+  }
 
-  const handleSubmit = async (event) => {
+  const handleNextYearChange = (event) => {
+    const nextYear = parseInt(document.getElementById('yearSelect').value) + parseInt(event.target.value)
+    document.getElementById('yearSelect').value = nextYear.toString().padStart(4, '0')
+  }
+
+  const handleSubredditChange = (event) => {
+    setSubreddit(event.target.value)
+  }
+
+  const handleSubmit = (event) => {
     event.preventDefault();
+    setActiveTab({month: true, week: false, day: false}) 
+    fetchPosts()
+  }
+    
+  const fetchPosts = async () => { 
+    setPostsDay(0)
+    setPostsWeek(0)
 
-    const formData = new FormData(event.target);
+    const range = document.getElementById('monthSelect').value == 13 ? 'year' : 'month'
+    const requestBody = {
+      month: document.getElementById('monthSelect').value,
+      year: document.getElementById('yearSelect').value,
+      subreddit: subreddit,
+      range: range
+    };
 
     const response = await fetch('http://127.0.0.1:5000/form', {
       method: 'POST',
-      body: formData,
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestBody),
     });
   
-    const data = await response.json();
-  
-    setPosts(data.posts)
+    const data = await response.json()
+    setPostsMonth(data.month.length > 0 ? data.month[0] : [])
+    setPostsDayTotal(data.month.length > 0 ? data.days : [])
+    setPostsWeekTotal(data.month.length > 0 ? data.weeks : [])
+    console.log(data)
   }
-  
 
-  return (
 
-    <>
-    <button><Link href={'/search'}> Test </Link></button>
-    <h1> Better Reddit </h1>
-    <h2> Find what what you saw a month ago </h2>
-    <div>asdf</div>
+return (
 
-    <form action="http://127.0.0.1:5000/form" method="post" onSubmit={handleSubmit} >
-      <label for="created_utc_start"> Date range start </label>
-      <input type="date" value={selectedDateStart} onChange={handleStartDateChange} id="created_utc_start" name="created_utc_start" />
+  <div className='p-5 flex flex-col items-center gap-y-5 bg-zinc-950 text-zinc-200 min-h-screen'>
+  <div>
+    <h1 className='text-5xl text-center font-bold	'> Best of Reddit </h1>
+    <h2 className='text-base text-center'> Find the top posts you missed months ago </h2>
+  </div>
+  <form id='form' onSubmit={handleSubmit} className='text-center w-5/12 flex flex-row justify-between'>
+    <div className='bg-zinc-950'>
+      <label> Month: </label>
+      <select className='bg-zinc-200 hover:outline rounded-3xl text-zinc-900 pr-1 pl-1' defaultValue={'11'} id="monthSelect">
+        <option value={'01'}>January</option>
+        <option value={'02'}>February</option>
+        <option value={'03'}>March</option>
+        <option value={'04'}>April</option>
+        <option value={'05'}>May</option>
+        <option value={'06'}>June</option>
+        <option value={'07'}>July</option>
+        <option value={'08'}>August</option>
+        <option value={'09'}>September</option>
+        <option value={'10'}>October</option>
+        <option value={'11'}>November</option>
+        <option value={'12'}>December</option>
+        <option value={'13'}> Entire year </option>
+      </select>
+    
+      <label> Year: </label>
+      <select className='bg-zinc-200 hover:outline rounded-3xl text-zinc-900 pr-1 pl-1' defaultValue={'2005'} id='yearSelect'>
+        <option value={'2005'}>2005</option>
+        <option value={'2006'}>2006</option>
+        <option value={'2007'}>2007</option>
+        <option value={'2008'}>2008</option>
+        <option value={'2009'}>2009</option>
+        <option value={'2010'}>2010</option>
+        <option value={'2011'}>2011</option>
+        <option value={'2012'}>2012</option>
+        <option value={'2013'}>2013</option>
+        <option value={'2014'}>2014</option>
+        <option value={'2015'}>2015</option>
+        <option value={'2016'}>2016</option>
+        <option value={'2017'}>2017</option>
+        <option value={'2018'}>2018</option>
+        <option value={'2019'}>2019</option>
+        <option value={'2020'}>2020</option>
+        <option value={'2021'}>2021</option>
+        <option value={'2022'}>2022</option>
+        <option value={'2023'}>2023</option>
+      </select>
+    </div>
+    
+    <div>
+      <label> Subreddit: </label>
+      <input className='bg-zinc-200 text-zinc-900 rounded-full text-center w-1/2 ml-2' type="text" value={subreddit} onChange={handleSubredditChange} id="subreddit" name="subreddit" />
+    </div>
 
-      <label for="created_utc_end"> Date range end </label>
-      <input type="date" value={selectedDateEnd} onChange={handleEndDateChange} id="created_utc_end" name="created_utc_end" />
+    <button className='bg-zinc-200 rounded-full px-4 boarder border-zinc-900 text-zinc-900' id='submit' type="submit">Submit</button>
+  </form>
 
-      <label for="subreddit"> Subreddit: </label>
-      <input type="text" id="subreddit" name="subreddit" />
+  <div className="gap-4 flex justify-around w-6/12 bg-zinc-950">
+    <div>
+    {activeTab.day && <button className='active:bg-gray-600 hover:italic' value={-1} onClick={handleDayChangeBtn}> <FontAwesomeIcon className='pointer-events-none hover:outline' icon={faArrowLeft}/> Previous Day </button> }
+    {activeTab.week && <button className='active:bg-gray-600 hover:italic' id='nextWeek' value={-1} type='button' onClick={handleNextWeekBtn}> <FontAwesomeIcon className='pointer-events-none' icon={faArrowLeft}/> Previous Week </button>} 
+    {activeTab.month && <button className='active:bg-gray-600 hover:italic' value={-1} onClick={handleNextMonthChange}> <FontAwesomeIcon className='pointer-events-none' icon={faArrowLeft}/> Previous Month </button>}
+    </div>
+    <div className="gap-4 flex">
+    <div>|</div>
+    <button className='active:bg-gray-600 hover:underline' onClick={() => setActiveTab({month: false, week: false, day: true})}> View by day </button>
+    <div>|</div>
+    <button className='active:bg-gray-600 hover:underline' onClick={() => setActiveTab({month: false, week: true, day: false})}> View by Week </button>
+    <div>|</div>
+    <button className='active:bg-gray-600 hover:underline' onClick={() => setActiveTab({month: true, week: false, day: false})}> View by Month </button>
+    <div>|</div>
+    </div>
+    <div>
+    {activeTab.month && <button className='active:bg-gray-600 hover:italic' value={1} onClick={handleNextMonthChange}> Next Month <FontAwesomeIcon className='pointer-events-none'  icon={faArrowRight}/> </button>}
+    {activeTab.week && <button className='active:bg-gray-600 hover:italic' id='nextWeek' value={1} type='button' onClick={handleNextWeekBtn}> Next Week <FontAwesomeIcon className='pointer-events-none'  icon={faArrowRight}/>  </button>} 
+    {activeTab.day && <button className='active:bg-gray-600 hover:italic' value={1} onClick={handleDayChangeBtn}> Next Day <FontAwesomeIcon className='pointer-events-none'  icon={faArrowRight}/> </button>} 
+    </div>
+  </div>
 
-      <label for="title"> Title </label>
-      <input type="text" id="title" name="title" />
 
-      
-
-{/* 
-      <label for="author"> Reddit user:</label>
-      <input type="text" id="author" name="author" />
-
-      <label for="clicked"> Have you seen it? </label>
-      <input type="text" id="clicked" name="clicked" />
-      
-      <label for="comments"> Comments </label>
-      <input type="text" id="comments" name="comments" />
-
-      <label for="distinguished"> Was it distinguished? </label>
-      <input type="text" id="distinguished" name="distinguished" />
-      
-      <label for="edited"> Was it edited </label>
-      <input type="text" id="edited" name="edited" />
-      
-      <label for="id"> ID </label>
-      <input type="text" id="id" name="id" />
-      
-      <label for="is_original_content"> Was it original content? </label>
-      <input type="text" id="is_original_content" name="is_original_content" />
-      
-      <label for="is_self"> Self post? </label>
-      <input type="text" id="is_self" name="is_self" />
-      
-      <label for="locked"> Locked? </label>
-      <input type="text" id="locked" name="locked" />
-      
-      <label for="name"> Name </label>
-      <input type="text" id="name" name="name" />
-      
-      <label for="num_comments"> Number of comments? </label>
-      <input type="text" id="num_comments" name="num_comments" />
-      
-      <label for="over_18"> NSFW </label>
-      <input type="text" id="over_18" name="over_18" />
-      
-      <label for="permalink"> Permalink </label>
-      <input type="text" id="permalink" name="permalink" />
-      
-      <label for="poll_data"> Poll? </label>
-      <input type="text" id="poll_data" name="poll_data" />
-      
-      <label for="saved"> Saved? </label>
-      <input type="text" id="saved" name="saved" />
-      
-      <label for="score"> Upvotes? </label>
-      <input type="text" id="score" name="score" />
-      
-      <label for="selftext"> Self Text </label>
-      <input type="text" id="selftext" name="selftext" />
-
-      <label for="spoiler"> Spoiler </label>
-      <input type="text" id="spoiler" name="spoiler" />
-      
-      <label for="stickied"> Stickied? </label>
-      <input type="text" id="stickied" name="stickied" />
-      
-      <label for="upvote_ratio"> Upvote ratio </label>
-      <input type="text" id="upvote_ratio" name="upvote_ratio" />
-
-      <label for="url"> URL </label>
-      <input type="text" id="url" name="url" />
-      */}
-
-      <button type="submit">Submit</button>
-
-    </form>
-
- 
-    {posts.map((post) => {
+  <div className='grid grid-cols-3 w-6/12 gap-5'> 
+    {activeTab.month === true && postsMonth.map((post, index) => { 
       return (
-        <div> 
-          <a href={post[2].url}> {post[2].url} </a>
-          {/* <img src={post[2]} /> */}
+        <div key={index} className='border rounded border-slate-700 h-28 flex flex-col justify-between p-1 bg-zinc-900 hover:bg-zinc-800'>
+          <a className='h-2/4 line-clamp-2 overflow-hidden' href={'https://www.reddit.com/r/reddit.com/comments/'+post.id} target="_blank" rel="noopener noreferrer">{post.title}</a>
+          <div className='text-center self-bottom'> Upvotes: {post.score} </div>
         </div>
       )
-      
     })}
-    </>
-  )
+
+    {activeTab.week === true && postsWeekTotal[postsWeek].map((post, index) => {
+          return (
+            <div key={index} className='border rounded border-slate-700 h-28 flex flex-col justify-between p-1 bg-zinc-900 hover:bg-zinc-800'> 
+              <a href={'https://www.reddit.com/r/reddit.com/comments/'+post.id} target="_blank" rel="noopener noreferrer"> {post.title} </a>
+              <div className='text-center self-bottom'> Upvotes: {post.score} </div>
+            </div>
+          )
+        })}
+
+    {activeTab.day === true && postsDayTotal[postsDay].map((post, index) => {
+        return (
+          <div key={index} className='border rounded border-slate-700 h-28 flex flex-col justify-between p-1 bg-zinc-900 hover:bg-zinc-800'> 
+            <a href={'https://www.reddit.com/r/reddit.com/comments/'+post.id} target="_blank" rel="noopener noreferrer">{post.title}</a>
+            <div className='text-center self-bottom'> Upvotes: {post.score} </div>
+          </div>
+        )
+      })}
+  </div>
+
+  </div>
+)
+
 }
 
 export default Home
+

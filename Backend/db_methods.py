@@ -1,24 +1,9 @@
 from env import *
-import collections
 import json
-import time
-
+import calendar
 
 connection = mysql_connector()
 cursor = connection.cursor()
-
-
-def insert_row_v5(data):
-    insert_data_query = """
-    INSERT INTO reddit_posts_v5 (date, subreddit, post_data)
-    VALUES (%s, %s, %s)
-    """
-
-    # Execute the SQL query to insert the row
-    cursor.execute(insert_data_query, data)
-
-    # Commit the changes to the database
-    connection.commit()
 
 
 def create_table_v5():
@@ -27,88 +12,59 @@ def create_table_v5():
     create_schema_query = """
     CREATE TABLE reddit_posts_v5 (
         date VARCHAR(255),
+        time_range VARCHAR(10),
         subreddit VARCHAR(255),
-        post_data JSON
+        post_data JSON,
+        PRIMARY KEY (date, time_range, subreddit)
     )
     """
-# post_type INT, comment_count INT, score INT, post_id VARCHAR(10), author VARCHAR(50),
-    # Execute the SQL query to create the schema
-    cursor.execute(create_schema_query)
 
-    # Commit the changes to the database
+    cursor.execute(create_schema_query)
     connection.commit()
 
-# create_table_v5()
 
-
-def show_post_from_date(start, end, subreddit):
-    start_time = time.time()
-    cursor = connection.cursor()
-    query = f'''
-    SELECT *
-    FROM reddit_posts_v5
-    WHERE date >= '{start}' AND date <= '{end}' 
-    '''
-
-    if subreddit:
-        query = query + f'AND subreddit = "{subreddit}"'
-
-    cursor.execute(query)
-    rows = cursor.fetchall()
-    print(len(rows))
-    count = collections.Counter()
-    for row in rows:
-        count[row[1]] += 1
-    print(count)
-    posts = []
-
-    for post in rows:
-        posts.extend(json.loads(post[2]))
-        # print(posts)
-    # print(posts)
-    posts.sort(reverse=True, key=lambda post: post['score'])
-
-    end_time = time.time()
-    print(end_time-start_time)
-
-    return posts[:50]
-
-# show_post_from_date('2007-01-01', '2007-12-31', '')
-
-def add_primary_key():
-    cursor = connection.cursor()
-
-
-    # Define the ALTER TABLE statement to add the primary key
-    alter_statement = """
-        ALTER TABLE reddit_posts_v5
-        ADD PRIMARY KEY (date,subreddit)
+def insert_row_v5(date, time_range, subreddit, post_data):
+    insert_data_query = """
+    INSERT INTO reddit_posts_v5 (date, time_range, subreddit, post_data)
+    VALUES (%s, %s, %s, %s)
     """
 
-    # Execute the ALTER TABLE statement
-    cursor.execute(alter_statement)
+    # Execute the SQL query to insert the row
+    cursor.execute(insert_data_query, (date, time_range, subreddit, post_data))
 
     # Commit the changes to the database
     connection.commit()
 
-# add_primary_key()
 
-
-def print_execution_plan(querry):
+def show_post_from_date(month, year, subreddit):
     cursor = connection.cursor()
 
-    # Enable the query execution plan
-    cursor.execute('''EXPLAIN SELECT * FROM reddit_posts_v5 
-                    WHERE subreddit= 'reddit.com' ''')
+    days_in_month = calendar.monthrange(int(year), int(month))[1]
+    days = [year+"-"+month+'-'+str(day+1) for day in range(days_in_month)]
+    weeks = [year+"-"+month+'-'+'week'+str(week) for week in range(4)]
 
-    # Fetch and display the execution plan
-    execution_plan = cursor.fetchall()
-    for i, plan in enumerate(execution_plan):
-        print_plan = zip(cursor.column_names, plan)
-        print(list(print_plan))
+    days = tuple(days)
+    weeks = tuple(weeks)
+    month =(f"('{year}-{month}')")
 
-    # Close the cursor and the database connection
-    cursor.close()
-    connection.close()
+    time_range = ['days', 'weeks', 'month']
+    times = [days, weeks, month]
 
-print_execution_plan('test')
+    posts = {'days': [], 'weeks': [], 'month': []}
+    for i in range(3):
+        query = f'''
+        SELECT *
+        FROM reddit_posts_v5
+        WHERE date IN {times[i]}
+        AND subreddit = '{ subreddit }'
+        '''
+
+        cursor.execute(query)
+        rows = cursor.fetchall()
+
+        for row in rows:
+            posts[time_range[i]].append(json.loads(row[3]))
+
+    return posts
+
+
